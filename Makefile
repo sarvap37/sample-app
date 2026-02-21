@@ -1,4 +1,4 @@
-.PHONY: help create-cluster delete-cluster build deploy port-forward clean install-argocd argocd-deploy argocd-status argocd-ui argocd-password argocd-add-ssh-key check-ssh-key
+.PHONY: help create-cluster delete-cluster build deploy port-forward clean install-argocd argocd-deploy argocd-status argocd-ui argocd-password argocd-add-ssh-key check-ssh-key scenario-crash scenario-oom scenario-fix
 
 CLUSTER_NAME = hello-world-cluster
 APP_NAME = hello-world-app
@@ -31,6 +31,11 @@ help:
 	@echo "  make status           - Check cluster status"
 	@echo "  make argocd-status    - Check ArgoCD application status"
 	@echo "  make logs             - View app logs"
+	@echo ""
+	@echo "Failure Scenarios (for testing):"
+	@echo "  make scenario-crash   - Deploy app that crashes after 5 requests (CrashLoopBackOff)"
+	@echo "  make scenario-oom     - Deploy app that runs out of memory (OOMKilled)"
+	@echo "  make scenario-fix     - Fix by redeploying the normal app"
 	@echo ""
 	@echo "Full Setup:"
 	@echo "  make setup            - Create cluster, build, install ArgoCD & deploy"
@@ -216,3 +221,56 @@ status:
 # View logs
 logs:
 	kubectl logs -f deployment/$(APP_NAME) -n $(KUBE_NAMESPACE)
+# Failure Scenario: CrashLoopBackOff
+scenario-crash: build load-image
+	@echo "Deploying CrashLoopBackOff scenario via ArgoCD..."
+	@echo "The app will crash after 5 requests"
+	@echo ""
+	@# Remove other apps
+	@kubectl delete application hello-world-app -n $(ARGOCD_NAMESPACE) 2>/dev/null || true
+	@kubectl delete application hello-world-app-oom -n $(ARGOCD_NAMESPACE) 2>/dev/null || true
+	@sleep 2
+	@# Deploy crash scenario via ArgoCD
+	@kubectl apply -f argocd/application-crash.yaml
+	@echo ""
+	@echo "Crash scenario deployed via ArgoCD!"
+	@echo ""
+	@echo "Monitor in ArgoCD UI: make argocd-ui"
+	@echo "Check pods: kubectl get pods -n $(KUBE_NAMESPACE) -w"
+	@echo "View logs: kubectl logs -f -l scenario=crash -n $(KUBE_NAMESPACE)"
+	@echo "To fix: make scenario-fix"
+
+# Failure Scenario: OOMKilled
+scenario-oom: build load-image
+	@echo "Deploying OOMKilled scenario via ArgoCD..."
+	@echo "The app will exceed memory limits and be killed"
+	@echo ""
+	@# Remove other apps
+	@kubectl delete application hello-world-app -n $(ARGOCD_NAMESPACE) 2>/dev/null || true
+	@kubectl delete application hello-world-app-crash -n $(ARGOCD_NAMESPACE) 2>/dev/null || true
+	@sleep 2
+	@# Deploy OOM scenario via ArgoCD
+	@kubectl apply -f argocd/application-oom.yaml
+	@echo ""
+	@echo "OOM scenario deployed via ArgoCD!"
+	@echo ""
+	@echo "Monitor in ArgoCD UI: make argocd-ui"
+	@echo "Check pods: kubectl get pods -n $(KUBE_NAMESPACE) -w"
+	@echo "View events: kubectl describe pod -l scenario=oom -n $(KUBE_NAMESPACE)"
+	@echo "To fix: make scenario-fix"
+
+# Fix Failure Scenarios
+scenario-fix: build load-image
+	@echo "Fixing failure scenarios - switching back to normal app via ArgoCD..."
+	@# Remove scenario apps
+	@kubectl delete application hello-world-app-crash -n $(ARGOCD_NAMESPACE) 2>/dev/null || true
+	@kubectl delete application hello-world-app-oom -n $(ARGOCD_NAMESPACE) 2>/dev/null || true
+	@sleep 2
+	@# Deploy normal app via ArgoCD
+	@kubectl apply -f argocd/application.yaml
+	@echo ""
+	@echo "Normal app redeployed via ArgoCD!"
+	@echo ""
+	@echo "Monitor in ArgoCD UI: make argocd-ui"
+	@echo "Check status: make argocd-status"
+	@echo "Access app: make port-forward"

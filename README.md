@@ -295,3 +295,80 @@ To update your application:
 4. ArgoCD will automatically sync the changes, or manually refresh in the UI
 
 > **Note**: For local development, you need to rebuild and reload the Docker image since we're using a local k3s cluster, not pulling from a remote registry.
+
+## Testing Kubernetes Failure Scenarios
+
+The app includes built-in failure scenarios to test monitoring, alerting, and auto-remediation:
+
+### CrashLoopBackOff Scenario
+
+Simulates an app that crashes after handling 5 requests:
+
+```bash
+make scenario-crash
+```
+
+**What happens:**
+- Pod starts normally
+- After 5 HTTP requests, the app crashes (`process.exit(1)`)
+- Kubernetes restarts the pod
+- Liveness probe fails, causing repeated restarts
+- Pod enters `CrashLoopBackOff` state
+
+**Monitoring:**
+```bash
+# Watch pod status
+kubectl get pods -n default -w
+
+# View logs
+kubectl logs -f -l scenario=crash -n default
+
+# View in ArgoCD UI
+make argocd-ui
+```
+
+### OOMKilled Scenario
+
+Simulates an app that exceeds memory limits:
+
+```bash
+make scenario-oom
+```
+
+**What happens:**
+- Pod starts normally
+- On each request, allocates a huge array (memory leak)
+- Memory usage exceeds the 128Mi limit
+- Kubernetes kills the pod with `OOMKilled`
+- Pod restarts and repeats
+
+**Monitoring:**
+```bash
+# Watch pod status
+kubectl get pods -n default -w
+
+# View events
+kubectl describe pod -l scenario=oom -n default
+
+# Check in ArgoCD UI
+make argocd-ui
+```
+
+### Fixing Scenarios
+
+Return to normal operation:
+
+```bash
+make scenario-fix
+```
+
+This removes the failure scenarios and redeploys the healthy app via ArgoCD.
+
+### ArgoCD Health Detection
+
+ArgoCD will show:
+- **Health Status**: `Degraded` when pods are crashing/OOMKilled
+- **Sync Status**: `Synced` (manifests match Git)
+- **Auto-healing**: Disabled by default for scenarios (so you can observe failures)
+
+To enable auto-healing, edit the ArgoCD application and set `selfHeal: true`.

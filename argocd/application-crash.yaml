@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hello-world-app-crash
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:sarvap37/sample-app.git
+    targetRevision: main
+    path: scenarios/crash
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false  # Disabled so you can see the crash
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    retry:
+      limit: 2
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 1m
