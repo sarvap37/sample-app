@@ -23,7 +23,7 @@ spec:
         imagePullPolicy: IfNotPresent
         env:
         - name: SCENARIO
-          value: "oom"
+          value: oom
         ports:
         - containerPort: 3000
         livenessProbe:
@@ -36,8 +36,8 @@ spec:
           failureThreshold: 2
         resources:
           requests:
-            memory: "64Mi"
-            cpu: "250m"
+            memory: 64Mi
+            cpu: 250m
           limits:
-            memory: "128Mi"
-            cpu: "500m"
+            memory: 256Mi
+            cpu: 500m
