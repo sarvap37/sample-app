@@ -4,7 +4,8 @@
   "description": "Simple hello world app",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "node app.js",
+    "test": "node --test test/app.test.js"
   },
   "keywords": ["hello", "world"],
   "author": "",
