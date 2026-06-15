@@ -46,6 +46,16 @@ if [[ "${GITOPS}" == "true" ]]; then
   git -C "${REPO_ROOT}" commit -m "chore: deploy ${APP_NAME}:${SHA}"
   git -C "${REPO_ROOT}" push
 
+  info "[GitOps] Logging in to ArgoCD..."
+  ARGOCD_PASS=$(kubectl -n "${ARGOCD_NS}" get secret argocd-initial-admin-secret \
+    -o jsonpath="{.data.password}" | base64 --decode)
+  argocd login \
+    --port-forward \
+    --port-forward-namespace "${ARGOCD_NS}" \
+    --username admin \
+    --password "${ARGOCD_PASS}" \
+    --insecure
+
   info "[GitOps] Triggering ArgoCD sync..."
   argocd app sync "${APP_NAME}" \
     --port-forward \

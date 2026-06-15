@@ -43,7 +43,7 @@ section "Installing ArgoCD"
 kubectl create namespace "${ARGOCD_NS}" --dry-run=client -o yaml | kubectl apply -f -
 
 ARGOCD_MANIFEST="https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"
-kubectl apply -n "${ARGOCD_NS}" -f "${ARGOCD_MANIFEST}"
+kubectl apply -n "${ARGOCD_NS}" -f "${ARGOCD_MANIFEST}" --server-side
 
 info "Waiting for ArgoCD server to be ready (up to 5 min)..."
 kubectl wait --for=condition=available --timeout=300s \
@@ -76,7 +76,23 @@ info "Application '${APP_NAME}' created."
 
 # ── 5. Initial sync ───────────────────────────────────────────────────────────
 section "Initial sync"
-info "Triggering sync via argocd CLI (port-forward handled automatically)..."
+info "Waiting for argocd-initial-admin-secret to appear..."
+until kubectl -n "${ARGOCD_NS}" get secret argocd-initial-admin-secret &>/dev/null; do
+  sleep 3
+done
+
+ARGOCD_PASS=$(kubectl -n "${ARGOCD_NS}" get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 --decode)
+
+info "Logging in to ArgoCD..."
+argocd login \
+  --port-forward \
+  --port-forward-namespace "${ARGOCD_NS}" \
+  --username admin \
+  --password "${ARGOCD_PASS}" \
+  --insecure
+
+info "Triggering sync..."
 argocd app sync "${APP_NAME}" \
   --port-forward \
   --port-forward-namespace "${ARGOCD_NS}" \
