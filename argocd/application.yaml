@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: git@github.com:sarvap37/sample-app.git
-    targetRevision: main
+    targetRevision: feat/local-devops-pipeline
     path: k8s
   destination:
     server: https://kubernetes.default.svc
