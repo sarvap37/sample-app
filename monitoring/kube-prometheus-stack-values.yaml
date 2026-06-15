@@ -1,0 +1,83 @@
+# kube-prometheus-stack Helm values — tuned for single-node Kind cluster
+# Installs: Prometheus, Grafana, Alertmanager, kube-state-metrics, node-exporter
+
+prometheus:
+  prometheusSpec:
+    replicas: 1
+    retention: 24h
+    # Watch ServiceMonitors in ALL namespaces (not just the same release namespace)
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    # No PVC — use emptyDir (data lost on pod restart, acceptable for local dev)
+    storageSpec: {}
+
+alertmanager:
+  alertmanagerSpec:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+    storage: {}
+
+grafana:
+  enabled: true
+  adminPassword: admin
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  # Wire up Loki as a second datasource alongside Prometheus
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki-stack.monitoring.svc:3100
+      access: proxy
+      isDefault: false
+  # Sidecar picks up ConfigMaps labelled grafana_dashboard="1"
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+
+# Disable components that expose metrics via host-network paths
+# which Kind's single-node networking doesn't make accessible
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+# Reduce footprint for Kind
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+nodeExporter:
+  enabled: true

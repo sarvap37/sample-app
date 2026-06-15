@@ -19,13 +19,22 @@ spec:
         image: localhost:6000/hello-world-app:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 3000
+        - name: http
+          containerPort: 3000
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 1
+          failureThreshold: 3
         livenessProbe:
           httpGet:
-            path: /
+            path: /health
             port: 3000
           initialDelaySeconds: 10
-          periodSeconds: 5
+          periodSeconds: 10
           timeoutSeconds: 1
           failureThreshold: 3
         resources:

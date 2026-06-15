@@ -1,17 +1,8 @@
 node_modules/
-npm-debug.log
-.DS_Store
-*.swp
-*.swo
-*~
-.vscode/
-.idea/
-dist/
-build/
-
-# SSH Keys - NEVER commit these!
+npm-debug.log*
 *.pem
 *.key
 id_rsa*
 id_ed25519*
 *.ppk
+.DS_Store

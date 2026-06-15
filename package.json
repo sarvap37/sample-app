@@ -9,5 +9,8 @@
   },
   "keywords": ["hello", "world"],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "prom-client": "^15.0.0"
+  }
 }

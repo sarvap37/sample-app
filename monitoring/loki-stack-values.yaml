@@ -1,0 +1,33 @@
+# loki-stack Helm values — Loki + Promtail for log aggregation
+# Grafana is disabled here; it comes from kube-prometheus-stack with Loki wired as a datasource
+
+loki:
+  enabled: true
+  isDefault: false
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+promtail:
+  enabled: true
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Disabled — we use Grafana from kube-prometheus-stack
+grafana:
+  enabled: false
+
+# Disabled — we use Prometheus from kube-prometheus-stack
+prometheus:
+  enabled: false
