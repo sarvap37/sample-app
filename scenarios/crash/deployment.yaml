@@ -19,8 +19,8 @@ spec:
     spec:
       containers:
       - name: hello-world-app
-        image: hello-world-app:latest
-        imagePullPolicy: IfNotPresent
+        image: localhost:6000/hello-world-app:latest
+        imagePullPolicy: Always
         env:
         - name: SCENARIO
           value: "crash"

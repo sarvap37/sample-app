@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-AIOps Triage Bot — Phase 5 of the local DevOps/AIOps learning pipeline.
+AIOps Triage Bot — Phases 5 & 6 of the local DevOps/AIOps learning pipeline.
 
 Receives Alertmanager webhooks, gathers context from Prometheus + Loki,
-then calls Claude to produce an actionable triage report.
+calls Claude to produce an actionable triage report, and optionally
+executes auto-remediation actions.
 
 Usage:
-  ANTHROPIC_API_KEY=sk-... python bot.py
+  ANTHROPIC_API_KEY=sk-... python bot.py           # triage only
+  ANTHROPIC_API_KEY=sk-... REMEDIATE=true python bot.py  # triage + auto-fix
 
 Environment variables:
   ANTHROPIC_API_KEY  — Claude API key (required for AI analysis)
+  REMEDIATE          — set to "true" to enable auto-remediation (default: false)
   PROMETHEUS_URL     — default: http://localhost:9090
   LOKI_URL           — default: http://localhost:3100  (needs port-forward)
   PORT               — webhook listener port (default: 5001)
@@ -23,11 +26,14 @@ import anthropic
 import requests
 from flask import Flask, jsonify, request
 
+from remediate import remediate as auto_remediate
+
 app = Flask(__name__)
 
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://localhost:9090")
 LOKI_URL = os.getenv("LOKI_URL", "http://localhost:3100")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+REMEDIATE_ENABLED = os.getenv("REMEDIATE", "false").lower() == "true"
 
 # ---------------------------------------------------------------------------
 # Context gathering
@@ -256,8 +262,13 @@ RECENT POD LOGS (last 15 min):
 
     print("\n  Querying Claude for triage analysis...\n")
     analysis = call_claude(alert_name, severity, alert_context)
-
     print("  " + "\n  ".join(analysis.splitlines()))
+
+    if REMEDIATE_ENABLED and status == "firing":
+        print("\n  ── Auto-remediation ──")
+        action = auto_remediate(alert_name, pod, namespace)
+        print(f"  {action}")
+
     print()
 
 
@@ -324,5 +335,6 @@ if __name__ == "__main__":
     print(f"  Prometheus: {PROMETHEUS_URL}")
     print(f"  Loki:       {LOKI_URL}")
     print(f"  Claude AI:  {'✓ configured' if ANTHROPIC_API_KEY else '✗ NOT SET — set ANTHROPIC_API_KEY'}")
+    print(f"  Remediate:  {'✓ ENABLED' if REMEDIATE_ENABLED else '✗ disabled (set REMEDIATE=true to enable)'}")
     print()
     app.run(host="0.0.0.0", port=port, debug=False)
