@@ -1,0 +1,33 @@
+# Alertmanager Helm values with webhook config for the AIOps triage bot.
+# AIOOPS_BOT_HOST is replaced with the actual host gateway IP by phase5-setup.sh.
+alertmanager:
+  alertmanagerSpec:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+    storage: {}
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['alertname', 'namespace', 'pod']
+      group_wait: 15s
+      group_interval: 5m
+      repeat_interval: 1h
+      receiver: aioops-bot
+    receivers:
+      - name: aioops-bot
+        webhook_configs:
+          - url: 'http://AIOOPS_BOT_HOST:5001/webhook'
+            send_resolved: true
+    inhibit_rules:
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['alertname', 'namespace']

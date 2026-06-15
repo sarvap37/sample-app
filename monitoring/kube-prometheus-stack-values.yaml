@@ -5,10 +5,13 @@ prometheus:
   prometheusSpec:
     replicas: 1
     retention: 24h
-    # Watch ServiceMonitors in ALL namespaces (not just the same release namespace)
+    # Watch ServiceMonitors and PrometheusRules in ALL namespaces
     serviceMonitorSelectorNilUsesHelmValues: false
     serviceMonitorSelector: {}
     serviceMonitorNamespaceSelector: {}
+    ruleSelectorNilUsesHelmValues: false
+    ruleSelector: {}
+    ruleNamespaceSelector: {}
     resources:
       requests:
         cpu: 100m

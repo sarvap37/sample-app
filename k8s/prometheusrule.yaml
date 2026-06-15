@@ -1,0 +1,76 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hello-world-app
+  namespace: default
+  labels:
+    app: hello-world-app
+spec:
+  groups:
+    - name: hello-world-app.rules
+      interval: 30s
+      rules:
+        - alert: HelloWorldAppDown
+          expr: absent(up{job="hello-world-app"}) or up{job="hello-world-app"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Hello World app has no healthy pods"
+            description: "No scrape target for hello-world-app has been reachable for 1 minute."
+            runbook: "kubectl get pods -l app=hello-world-app && kubectl describe deployment hello-world-app"
+
+        - alert: HelloWorldPodCrashLooping
+          expr: |
+            kube_pod_container_status_waiting_reason{
+              reason="CrashLoopBackOff",
+              container="hello-world-app"
+            } == 1
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ $labels.pod }} is in CrashLoopBackOff"
+            description: "Container hello-world-app in pod {{ $labels.pod }} has been crash looping for 1 minute."
+            runbook: "kubectl logs {{ $labels.pod }} --previous -n {{ $labels.namespace }}"
+
+        - alert: HelloWorldPodOOMKilled
+          expr: |
+            kube_pod_container_status_last_terminated_reason{
+              reason="OOMKilled",
+              container="hello-world-app"
+            } == 1
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.pod }} was OOMKilled"
+            description: "Container hello-world-app in pod {{ $labels.pod }} was killed by the OOM killer."
+            runbook: "Increase memory limits in k8s/deployment.yaml and run bash scripts/ci-local.sh"
+
+        - alert: HelloWorldHighRestartRate
+          expr: |
+            increase(kube_pod_container_status_restarts_total{
+              container="hello-world-app"
+            }[1h]) > 3
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.pod }} is restarting frequently"
+            description: "Pod {{ $labels.pod }} has restarted {{ $value | humanize }} times in the last hour."
+            runbook: "kubectl describe pod {{ $labels.pod }} -n {{ $labels.namespace }}"
+
+        - alert: HelloWorldHighMemoryUsage
+          expr: |
+            (
+              container_memory_working_set_bytes{container="hello-world-app"}
+              / container_spec_memory_limit_bytes{container="hello-world-app"}
+            ) > 0.8
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.pod }} memory usage exceeds 80%"
+            description: "Pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of its memory limit."
+            runbook: "Check SCENARIO env var on the deployment. Consider increasing memory limits."

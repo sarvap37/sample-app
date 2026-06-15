@@ -21,6 +21,7 @@ echo "━━━ Monitoring port-forwards ━━━"
 echo "  Grafana      → http://localhost:3000  (admin / admin)"
 echo "  Prometheus   → http://localhost:9090"
 echo "  Alertmanager → http://localhost:9093"
+echo "  Loki         → http://localhost:3100  (AIOps bot log queries)"
 echo ""
 echo "  Press Ctrl+C to stop."
 echo ""
@@ -32,6 +33,9 @@ kubectl port-forward -n "${NS}" svc/prometheus-operated 9090:9090 &
 PF_PIDS+=($!)
 
 kubectl port-forward -n "${NS}" svc/alertmanager-operated 9093:9093 &
+PF_PIDS+=($!)
+
+kubectl port-forward -n "${NS}" svc/loki-stack 3100:3100 &
 PF_PIDS+=($!)
 
 cleanup() {
