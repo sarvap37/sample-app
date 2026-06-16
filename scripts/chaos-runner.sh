@@ -120,17 +120,19 @@ print(len(alerts))" 2>/dev/null || echo "0")
 # ---------------------------------------------------------------------------
 section "Pre-flight checks"
 
-declare -A PORT_NAMES=([9090]="Prometheus (monitoring-port-forward.sh)" [5001]="AIOps bot (bot.py)")
-for port in 9090 5001; do
+check_port() {
+  local port="$1" label="$2"
   if curl -s --max-time 2 "http://localhost:${port}/-/healthy" &>/dev/null || \
      curl -s --max-time 2 "http://localhost:${port}/health" &>/dev/null || \
      curl -s --max-time 2 "http://localhost:${port}/api/v1/alerts" &>/dev/null; then
-    pass "Port ${port} reachable (${PORT_NAMES[${port}]})"
+    pass "Port ${port} reachable (${label})"
   else
-    fail "Port ${port} not reachable — start: ${PORT_NAMES[${port}]}"
+    fail "Port ${port} not reachable — start: ${label}"
     exit 1
   fi
-done
+}
+check_port 9090 "Prometheus — run: bash scripts/monitoring-port-forward.sh"
+check_port 5001 "AIOps bot  — run: cd aioops-bot && REMEDIATE=true venv/bin/python bot.py"
 
 # Run scenarios
 run_chaos_test "crash" "HelloWorldPodCrashLooping" "scenarios/crash"
