@@ -9,12 +9,17 @@
 #   5. Clean up any remaining scenario pods
 #
 # Prerequisites:
-#   - monitoring-port-forward.sh running (Alertmanager on :9093, Prometheus on :9090)
+#   - monitoring-port-forward.sh running (Prometheus on :9090, Alertmanager on :9093)
 #   - AIOps bot running with REMEDIATE=true (on :5001)
+#
+# Timing notes:
+#   crash: pod crashes after 5 requests (~13s), CrashLoopBackOff after 3-4 restarts,
+#          plus the alert rule's `for: 1m` hold — allow 240s total
+#   oom:   pod OOMKills on first request, alert fires immediately — 120s is enough
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ALERT_WAIT_SECS="${ALERT_WAIT_SECS:-120}"
+ALERT_WAIT_SECS="${ALERT_WAIT_SECS:-240}"
 REMEDIATION_WAIT_SECS="${REMEDIATION_WAIT_SECS:-60}"
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -36,14 +41,19 @@ run_chaos_test() {
   info "Applying ${scenario_dir}/deployment.yaml ..."
   kubectl apply -f "${REPO_ROOT}/${scenario_dir}/deployment.yaml"
 
-  # ── Wait for alert to fire ─────────────────────────────────────────────
+  # ── Wait for alert to fire (poll Prometheus directly) ─────────────────
   info "Waiting up to ${ALERT_WAIT_SECS}s for alert '${alert_name}' to fire ..."
   local elapsed=0
   while true; do
     local count
-    count=$(curl -s "http://localhost:9093/api/v2/alerts?active=true&filter=alertname%3D${alert_name}" \
+    count=$(curl -s "http://localhost:9090/api/v1/alerts" \
       2>/dev/null \
-      | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d))" 2>/dev/null || echo "0")
+      | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+alerts=[a for a in d.get('data',{}).get('alerts',[])
+        if a.get('labels',{}).get('alertname')=='${alert_name}' and a.get('state')=='firing']
+print(len(alerts))" 2>/dev/null || echo "0")
 
     if [[ "${count}" -gt 0 ]]; then
       pass "Alert '${alert_name}' is firing"
@@ -110,12 +120,14 @@ run_chaos_test() {
 # ---------------------------------------------------------------------------
 section "Pre-flight checks"
 
-for port in 9093 5001; do
-  if curl -s --max-time 2 "http://localhost:${port}/health" &>/dev/null || \
-     curl -s --max-time 2 "http://localhost:${port}/" &>/dev/null; then
-    pass "Port ${port} reachable"
+declare -A PORT_NAMES=([9090]="Prometheus (monitoring-port-forward.sh)" [5001]="AIOps bot (bot.py)")
+for port in 9090 5001; do
+  if curl -s --max-time 2 "http://localhost:${port}/-/healthy" &>/dev/null || \
+     curl -s --max-time 2 "http://localhost:${port}/health" &>/dev/null || \
+     curl -s --max-time 2 "http://localhost:${port}/api/v1/alerts" &>/dev/null; then
+    pass "Port ${port} reachable (${PORT_NAMES[${port}]})"
   else
-    fail "Port ${port} not reachable — is $([ ${port} -eq 9093 ] && echo 'monitoring-port-forward.sh' || echo 'bot.py') running?"
+    fail "Port ${port} not reachable — start: ${PORT_NAMES[${port}]}"
     exit 1
   fi
 done

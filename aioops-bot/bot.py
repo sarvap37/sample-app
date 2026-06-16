@@ -20,6 +20,8 @@ Environment variables:
 
 import json
 import os
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 import anthropic
@@ -34,6 +36,11 @@ PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://localhost:9090")
 LOKI_URL = os.getenv("LOKI_URL", "http://localhost:3100")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 REMEDIATE_ENABLED = os.getenv("REMEDIATE", "false").lower() == "true"
+POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "20"))  # seconds between Prometheus polls
+
+# Tracks fingerprints of alerts we've already acted on this firing cycle.
+# Cleared when an alert resolves so it can be re-processed if it re-fires.
+_active_alerts: dict[str, str] = {}  # fingerprint → activeAt
 
 # ---------------------------------------------------------------------------
 # Context gathering
@@ -93,7 +100,7 @@ def query_loki(pod: str, limit: int = 40) -> str:
         streams = resp.json().get("data", {}).get("result", [])
         lines = []
         for stream in streams:
-            for _ts, line in stream.get("values", []):
+            for _, line in stream.get("values", []):
                 lines.append(line)
         if not lines:
             return "(no recent logs found)"
@@ -323,18 +330,71 @@ def test_alert():
 
 
 # ---------------------------------------------------------------------------
+# Prometheus alert poller (primary trigger mechanism)
+# ---------------------------------------------------------------------------
+
+def _poll_prometheus_alerts() -> None:
+    """
+    Poll Prometheus /api/v1/alerts every POLL_INTERVAL seconds.
+    When a new firing alert appears, run triage + optional remediation.
+    Avoids the Alertmanager webhook networking problem entirely.
+    """
+    print(f"  [poll] Started — checking Prometheus every {POLL_INTERVAL}s")
+    while True:
+        time.sleep(POLL_INTERVAL)
+        try:
+            resp = requests.get(f"{PROMETHEUS_URL}/api/v1/alerts", timeout=5)
+            if not resp.ok:
+                continue
+
+            firing_now: set[str] = set()
+
+            for alert in resp.json().get("data", {}).get("alerts", []):
+                if alert.get("state") != "firing":
+                    continue
+
+                labels = alert.get("labels", {})
+                # Only handle our app's alerts
+                if not labels.get("alertname", "").startswith("HelloWorld"):
+                    continue
+
+                fingerprint = json.dumps(labels, sort_keys=True)
+                firing_now.add(fingerprint)
+
+                if fingerprint not in _active_alerts:
+                    _active_alerts[fingerprint] = alert.get("activeAt", "")
+                    print(f"\n  [poll] New firing alert detected: {labels.get('alertname')}")
+                    process_alert({
+                        "status": "firing",
+                        "labels": labels,
+                        "annotations": alert.get("annotations", {}),
+                        "startsAt": alert.get("activeAt", ""),
+                    })
+
+            # Forget alerts that are no longer firing so they can be re-processed if they re-fire
+            for fp in list(_active_alerts.keys()):
+                if fp not in firing_now:
+                    del _active_alerts[fp]
+
+        except Exception as exc:
+            print(f"  [poll] Error querying Prometheus: {exc}")
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5001"))
     print("━━━ AIOps Triage Bot ━━━")
-    print(f"  Webhook  → http://0.0.0.0:{port}/webhook")
+    print(f"  Webhook  → http://0.0.0.0:{port}/webhook  (manual/test)")
+    print(f"  Polling  → {PROMETHEUS_URL}/api/v1/alerts  every {POLL_INTERVAL}s  (primary)")
     print(f"  Health   → http://0.0.0.0:{port}/health")
     print(f"  Test     → POST http://localhost:{port}/test")
-    print(f"  Prometheus: {PROMETHEUS_URL}")
     print(f"  Loki:       {LOKI_URL}")
     print(f"  Claude AI:  {'✓ configured' if ANTHROPIC_API_KEY else '✗ NOT SET — set ANTHROPIC_API_KEY'}")
     print(f"  Remediate:  {'✓ ENABLED' if REMEDIATE_ENABLED else '✗ disabled (set REMEDIATE=true to enable)'}")
     print()
+
+    threading.Thread(target=_poll_prometheus_alerts, daemon=True).start()
     app.run(host="0.0.0.0", port=port, debug=False)
