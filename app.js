@@ -9,6 +9,14 @@ const SCENARIO = process.env.SCENARIO || 'normal';
 let iterations = 0;
 
 const server = http.createServer((req, res) => {
+  // Health checks are not requests: they skip the counter and failure injection.
+  if (req.url === '/healthz' || req.url === '/readyz') {
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/plain');
+    res.end('ok\n');
+    return;
+  }
+
   iterations++;
   
   if (SCENARIO === 'crash') {
@@ -36,7 +44,11 @@ const server = http.createServer((req, res) => {
   }
 });
 
-server.listen(port, hostname, () => {
-  console.log(`Server running at http://${hostname}:${port}/`);
-  console.log(`Scenario: ${SCENARIO}`);
-});
+if (require.main === module) {
+  server.listen(port, hostname, () => {
+    console.log(`Server running at http://${hostname}:${port}/`);
+    console.log(`Scenario: ${SCENARIO}`);
+  });
+}
+
+module.exports = server;
