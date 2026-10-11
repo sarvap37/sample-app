@@ -13,3 +13,22 @@ test('k8s/ contains only the healthy workload (no crash/OOM deployments)', () =>
     assert.ok(!/crash|oom/i.test(text), `${f} references a failure scenario`);
   }
 });
+
+// Bug: scenario Services must not collide with the normal Service.
+const read = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
+
+for (const s of ['crash', 'oom']) {
+  test(`scenarios/${s} Service has a unique name, nodePort and selector`, () => {
+    const svc = read('scenarios', s, 'service.yaml');
+    assert.match(svc, new RegExp(`name: hello-world-app-${s}\\n`));
+    assert.match(svc, new RegExp(`selector:\\n    app: hello-world-app\\n    scenario: ${s}\\n`));
+    assert.ok(!/nodePort: 30000\b/.test(svc), 'nodePort 30000 belongs to the normal Service');
+  });
+}
+
+test('every Argo CD Application has the resources-finalizer', () => {
+  const dir = path.join(__dirname, '..', 'argocd');
+  for (const f of fs.readdirSync(dir).filter((x) => /\.ya?ml$/.test(x))) {
+    assert.match(read('argocd', f), /finalizers:\n\s+- resources-finalizer\.argocd\.argoproj\.io\n/, f);
+  }
+});
