@@ -1,0 +1,19 @@
+name: PR loop smoke test
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the test marker
+        run: |
+          if [ -f smoke.txt ] && ! grep -qx 'pass' smoke.txt; then
+            echo 'Set smoke.txt to pass to make this check green.'
+            exit 1
+          fi
