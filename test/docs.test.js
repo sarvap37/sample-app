@@ -8,4 +8,5 @@ test('J3 feedback trial doc exists with heading and sentence', () => {
   assert.match(text, /^# J3 feedback trial$/m);
   assert.ok(text.includes('This disposable document exercises the pull request feedback loop.'));
   assert.ok(text.includes('Inline feedback was applied on the same pull request.'));
+  assert.ok(text.includes('This document also tests autonomous feedback handling.'));
 });
