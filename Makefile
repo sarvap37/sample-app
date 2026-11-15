@@ -1,4 +1,4 @@
-.PHONY: help create-cluster delete-cluster build deploy port-forward clean install-argocd argocd-deploy argocd-status argocd-ui argocd-password argocd-add-ssh-key check-ssh-key scenario-crash scenario-oom scenario-fix
+.PHONY: help create-cluster delete-cluster build deploy port-forward clean install-argocd argocd-deploy argocd-status argocd-ui argocd-password argocd-add-ssh-key check-ssh-key scenario-crash scenario-oom scenario-fix load-image setup status logs
 
 CLUSTER_NAME = hello-world-cluster
 APP_NAME = hello-world-app
