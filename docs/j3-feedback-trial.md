@@ -1,3 +1,3 @@
 # J3 feedback trial
 
-This disposable document exercises the pull request feedback loop.
+This disposable document exercises the pull request feedback loop. Inline feedback was applied on the same pull request.
