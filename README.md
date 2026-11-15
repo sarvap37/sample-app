@@ -192,14 +192,18 @@ After deployment, you have two options:
 ```
 .
 |-- app.js              # Node.js application
-|-- package.json        # Node dependencies
+|-- package.json        # Node dependencies and test script
 |-- Dockerfile          # Container image definition
 |-- Makefile            # Build and deployment automation
+|-- SECURITY.md         # Security policy
 |-- k8s/
 |   |-- deployment.yaml # Kubernetes deployment
 |   `-- service.yaml    # Kubernetes service
-|-- argocd/
-|   `-- application.yaml # ArgoCD application manifest
+|-- scenarios/
+|   |-- crash/          # CrashLoopBackOff scenario manifests
+|   `-- oom/            # OOMKilled scenario manifests
+|-- test/               # Tests (run with `npm test`)
+|-- argocd/             # ArgoCD application manifests
 `-- README.md          # This file
 ```
 
